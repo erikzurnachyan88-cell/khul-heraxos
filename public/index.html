@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="hy"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Խուլ հեռախոս</title>
+<style>
+:root{--ink:#231942;--pink:#ff4f8b;--sun:#ffd23f;--sky:#3ec1ff;--mint:#2fe0a0;--paper:#fffaf0}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{min-height:100vh;font-family:'Noto Sans Armenian',system-ui,sans-serif;color:var(--ink);background:linear-gradient(160deg,var(--sun),var(--pink) 55%,var(--sky));padding:max(14px,env(safe-area-inset-top)) 14px max(20px,env(safe-area-inset-bottom))}
+#app{max-width:480px;margin:0 auto}
+h1{font-size:2.3rem;margin:.3em 0;line-height:1.05;text-align:center;color:var(--paper);text-shadow:3px 3px 0 var(--ink)}
+.card{background:var(--paper);border:3px solid var(--ink);border-radius:18px;padding:14px;margin:12px 0;box-shadow:5px 5px 0 var(--ink)}
+button{font:inherit;font-weight:700;border:3px solid var(--ink);border-radius:14px;background:var(--mint);color:var(--ink);padding:12px 16px;box-shadow:3px 3px 0 var(--ink);cursor:pointer;width:100%;margin-top:8px}
+button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+button.alt{background:var(--sun)}button.sm{width:auto;padding:8px 12px;margin:4px 4px 0 0}
+input{font:inherit;width:100%;padding:12px;border:3px solid var(--ink);border-radius:14px;background:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:2px solid var(--ink);border-radius:99px;padding:3px 10px;background:#fff;font-size:.9rem}
+.chip.d{background:var(--mint)}.chip.off{opacity:.45}
+.top{display:flex;justify-content:space-between;align-items:center;font-weight:800;color:var(--paper);text-shadow:2px 2px 0 var(--ink)}
+#tm{font-size:1.8rem}
+.link{display:flex;gap:6px;align-items:center}.link input{font-size:.85rem}.link button{width:auto;margin:0}
+canvas{width:100%;aspect-ratio:1;border:3px solid var(--ink);border-radius:14px;background:#fff;touch-action:none;display:block}
+.pal{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pal i{width:32px;height:32px;border-radius:50%;border:3px solid var(--ink);cursor:pointer}
+.pal i.on{outline:3px solid var(--pink);outline-offset:2px}
+.big{font-size:1.5rem;font-weight:800;text-align:center;padding:10px}
+.by{font-size:.8rem;opacity:.7;margin-top:8px}
+img{width:100%;border:2px solid var(--ink);border-radius:10px;display:block}
+.msg{color:var(--paper);font-weight:700;text-shadow:2px 2px 0 var(--ink);text-align:center}
+</style></head><body><div id="app">
+<h1>Խուլ հեռախոս</h1><div id="top"></div><div id="main"></div></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>'&#'+c.charCodeAt(0)+';');
+const WORDS=['կատու','հեծանիվ','լեռ','հարսանիք','խորովածի օր','ինքնաթիռ','արև','թութ','դուդուկ','ձմեռ պապ','լողափ','հեռախոս','կարմիր խնձոր','ձուկ','ռոբոտ','ծննդյան տորթ','ձի','անձրևանոց','վիշապ','սեղան','ամպրոպ','թագավոր','ժամացույց','ձյունեմարդ','քաղաքի տաքսի','ագռավ'];
+const EMO=['😀','🐱','🚀','🍕','🎸','👑','🌋','🦄'];
+const COL=['#231942','#ff4f8b','#ffd23f','#2fe0a0','#3ec1ff','#8338ec','#fb5607','#8d5524','#ffffff'];
+let ws,S=null,me=JSON.parse(localStorage.tk||'null'),key='',done=false,getV=null,dl=0;
+const code=()=>location.hash.slice(1).toUpperCase()||(me&&me.code)||'';
+const send=o=>ws&&ws.readyState==1&&ws.send(JSON.stringify(o));
+function conn(first){
+  ws=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host);
+  ws.onopen=()=>send(first);
+  ws.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.err){me=null;localStorage.removeItem('tk');S=null;key='';home(m.err)}
+    else if(m.wel){me={code:m.code,tok:m.tok,name:m.name};localStorage.tk=JSON.stringify(me);location.hash=m.code}
+    else{S=m;dl=Date.now()+m.left;render()}};
+  ws.onclose=()=>{if(me)setTimeout(()=>conn({a:'join',code:me.code,name:me.name,tok:me.tok}),1500)};
+}
+function home(err){
+  $('#top').innerHTML='';const c=code();
+  $('#main').innerHTML=`${err?`<div class=msg>${esc(err)}</div>`:''}<div class=card><input id=nm maxlength=14 placeholder="Քո անունը" value="${esc((me&&me.name)||'')}"><button id=go>${c?'Միանալ խաղին':'Նոր խաղ'}</button></div>`;
+  $('#go').onclick=()=>{const name=$('#nm').value.trim();if(!name)return $('#nm').focus();
+    const tok=me&&me.code==c?me.tok:null;
+    conn(c?{a:'join',code:c,name,tok}:{a:'create',name})};
+}
+function render(){const k=S.phase+S.step;if(k!=key){key=k;done=false;build()}upd()}
+function chips(){return `<div class=chips>${S.players.map(p=>`<span class="chip ${p.d?'d':''} ${p.on?'':'off'}">${esc(p.n)}${p.d?' ✓':''}</span>`).join('')}</div>`}
+function upd(){
+  if(!$('#pl'))return;$('#pl').innerHTML=chips();
+  const s=$('#skip');if(s)s.style.display=S.host?'block':'none';
+}
+function build(){
+  const P=S.phase,m=$('#main');
+  $('#top').innerHTML=(P=='words'||P=='play')?`<div class=top><span>${P=='play'?`Փուլ ${S.step+1}/${S.steps}`:'Բառեր'}</span><span id=tm></span></div>`:'';
+  getV=null;
+  const foot=`<div class=card id=pl></div>${(P=='words'||P=='play')&&S.host?'<button id=skip class=alt>Շարունակել առանց սպասելու</button>':''}`;
+  if(P=='lobby'){
+    const url=location.origin+'/#'+S.code;
+    m.innerHTML=`<div class=card><b>Հղումը ուղարկիր ընկերներիդ</b><div class=link style="margin-top:8px"><input id=u readonly value="${url}"><button id=cp class=alt>Պատճենել</button></div>${navigator.share?'<button id=sh>Կիսվել</button>':''}</div>
+    <div class=card><b>Խաղացողներ (${S.players.length}/10)</b><div id=pl style="margin-top:8px"></div></div>
+    ${S.host?`<button id=st>${S.players.length<3?'Պետք է առնվազն 3 հոգի':'Սկսել խաղը'}</button>`:'<div class=msg>Սպասում ենք, որ հյուրընկալողը սկսի…</div>'}`;
+    $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(url)}catch{$('#u').select();document.execCommand('copy')}$('#cp').textContent='Պատճենվեց ✓'};
+    if($('#sh'))$('#sh').onclick=()=>navigator.share({title:'Խուլ հեռախոս',url});
+    if($('#st'))$('#st').onclick=()=>send({a:'start'});
+  }else if(P=='words'){
+    m.innerHTML=`<div class=card><b>Գրիր մի բառ կամ ընտրիր սմայլիկ</b><input id=w maxlength=30 style="margin-top:8px" placeholder="օրինակ՝ կատու">
+    <div class=pal>${EMO.map(e=>`<button class="sm alt">${e}</button>`).join('')}</div>
+    <button id=rn class=alt>Պատահական բառ</button><button id=ok>Պատրաստ է</button></div>${foot}`;
+    m.querySelectorAll('.pal button').forEach(b=>b.onclick=()=>$('#w').value+=b.textContent);
+    $('#rn').onclick=()=>$('#w').value=WORDS[Math.random()*WORDS.length|0];
+    getV=()=>$('#w').value||WORDS[Math.random()*WORDS.length|0];
+    $('#ok').onclick=submit;
+  }else if(P=='play'){
+    const t=S.task,draw=S.step%2==0;
+    if(draw){
+      m.innerHTML=`<div class=card><div class=by>Նկարիր սա</div><div class=big>${esc(t.v||'…')}</div><canvas id=cv width=340 height=340></canvas>
+      <div class=pal>${COL.map((c,i)=>`<i data-c="${c}" style="background:${c}" class="${i?'':'on'}"></i>`).join('')}</div>
+      <div><button class="sm alt" data-z=4>Բարակ</button><button class="sm alt" data-z=9>Միջին</button><button class="sm alt" data-z=20>Հաստ</button><button class="sm" id=clr>Մաքրել</button></div>
+      <button id=ok>Պատրաստ է</button></div>${foot}`;
+      initCv();$('#ok').onclick=submit;
+    }else{
+      m.innerHTML=`<div class=card><div class=by>Ի՞նչ է սա նկարված</div>${t.v?`<img src="${esc(t.v)}">`:'<div class=big>(դատարկ նկար)</div>'}
+      <input id=w maxlength=40 style="margin-top:10px" placeholder="Քո գուշակությունը"><button id=ok>Պատրաստ է</button></div>${foot}`;
+      getV=()=>$('#w').value||'…';$('#ok').onclick=submit;
+    }
+  }else if(P=='album'){
+    m.innerHTML=`<div class=msg style="font-size:1.4rem">Ալբոմներ 🎉</div>`+S.album.map(c=>`<div class=card>${c.map(i=>
+      i.t=='draw'?`<div class=by>${esc(i.by)} նկարեց</div>${i.v?`<img src="${esc(i.v)}">`:'<i>—</i>'}`
+      :`<div class=by>${esc(i.by)} ${i.t=='word'?'գրեց':'գուշակեց'}</div><div class=big style="text-align:left;padding:2px 0">${esc(i.v||'…')}</div>`).join('')}</div>`).join('')
+      +(S.host?'<button id=ag>Նոր խաղ նույն սենյակում</button>':'');
+    if($('#ag'))$('#ag').onclick=()=>send({a:'again'});
+  }
+  if($('#skip'))$('#skip').onclick=()=>send({a:'skip'});
+}
+function initCv(){
+  const c=$('#cv'),x=c.getContext('2d');let d=0,col=COL[0],sz=9;
+  x.fillStyle='#fff';x.fillRect(0,0,340,340);x.lineCap=x.lineJoin='round';
+  const p=e=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left)*340/r.width,(e.clientY-r.top)*340/r.height]};
+  c.onpointerdown=e=>{d=1;c.setPointerCapture(e.pointerId);const[a,b]=p(e);x.beginPath();x.moveTo(a,b);x.lineTo(a+.1,b);x.strokeStyle=col;x.lineWidth=sz;x.stroke()};
+  c.onpointermove=e=>{if(!d)return;const[a,b]=p(e);x.lineTo(a,b);x.stroke()};
+  c.onpointerup=c.onpointercancel=()=>d=0;
+  document.querySelectorAll('.pal i').forEach(i=>i.onclick=()=>{col=i.dataset.c;document.querySelectorAll('.pal i').forEach(j=>j.classList.remove('on'));i.classList.add('on')});
+  document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>sz=+b.dataset.z);
+  $('#clr').onclick=()=>{x.fillStyle='#fff';x.fillRect(0,0,340,340)};
+  getV=()=>c.toDataURL('image/jpeg',.6);
+}
+function submit(){if(done||!getV)return;done=true;send({a:'sub',v:getV()});
+  const b=$('#ok');if(b){b.parentElement.innerHTML='<div class=big>Սպասում ենք մյուսներին… ⏳</div>'}}
+setInterval(()=>{const t=$('#tm');if(!t||!S||!dl)return;const l=Math.max(0,Math.ceil((dl-Date.now())/1000));t.textContent=l+' վրկ';
+  if(l==0&&!done)submit()},400);
+if(me&&code()==me.code)conn({a:'join',code:me.code,name:me.name,tok:me.tok});else home();
+</script></body></html>
